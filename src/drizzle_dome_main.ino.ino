@@ -1,8 +1,5 @@
 /*
-  Drizzle-Dome: Automated Clothes Retrieval System
-
   This sketch controls an automated clothesline retraction system using an Arduino Uno.
-
 */
 
 // --- Pin Definitions ---
@@ -23,6 +20,7 @@ unsigned long retractionDelay = 10000;  // Wait 10s after rain stops before exte
 unsigned long motorRunTime = 5000;      // Time needed for full retraction/extension
 unsigned long lastRainTime = 0;         // Last time rain was detected
 unsigned long motorStartTime = 0;       // When motors started running
+unsigned long extensionRunTime = 0;     // How long motors actually extended before rain interrupted
 bool isRetracted = false;               // Current clothesline state
 bool motorsRunning = false;             // Are motors currently active?
 
@@ -70,8 +68,8 @@ void loop() {
   
   // Update last rain time if rain is detected
   if (rainDetected) {
-    lastRainTime = millis();
-  }
+    lastRainTime = millis(); //The millis() function returns the number of milliseconds that have elapsed since the board began running the current program. 
+  }// It acts as a non-blocking timer
   
   // Main state machine - NON-BLOCKING
   switch (currentState) {
@@ -112,14 +110,16 @@ void handleExtendedState(bool rainDetected) {
 
 // Handle RETRACTING state - motors pulling clothesline in
 void handleRetractingState(bool rainDetected) {
-  // Check if retraction time is complete
-  if (millis() - motorStartTime >= motorRunTime) {
+  // Use adaptive runtime if coming from emergency extension cancel
+  unsigned long targetRunTime = (extensionRunTime > 0) ? extensionRunTime : motorRunTime;
+
+  if (millis() - motorStartTime >= targetRunTime) {
     stopMotors();
     currentState = RETRACTED;
     isRetracted = true;
-    Serial.println("Clothesline fully retracted and safe!");
+    extensionRunTime = 0;  // reset for next cycle
+    Serial.println("Clothesline retracted safely!");
   }
-  // Continue running motors until time is up
 }
 
 // Handle RETRACTED state - waiting for rain to stop
@@ -135,16 +135,21 @@ void handleRetractedState(bool rainDetected) {
 
 // Handle EXTENDING state - motors pushing clothesline out
 void handleExtendingState(bool rainDetected) {
-  // EMERGENCY: If rain detected during extension, immediately retract!
   if (rainDetected) {
-    Serial.println("EMERGENCY: Rain detected during extension! Retracting immediately!");
+    // Calculate how long extension had run
+    extensionRunTime = millis() - motorStartTime;
+
+    Serial.print("EMERGENCY: Rain detected! Reversing for ");
+    Serial.print(extensionRunTime);
+    Serial.println(" ms");
+
     startRetractionMotors();
     currentState = RETRACTING;
-    motorStartTime = millis();
+    motorStartTime = millis();  // reset timer
     return;
   }
-  
-  // Check if extension time is complete
+
+  // Normal case: full extension complete
   if (millis() - motorStartTime >= motorRunTime) {
     stopMotors();
     currentState = EXTENDED;
@@ -201,3 +206,4 @@ void updateStatusLED() {
       break;
   }
 }
+
