@@ -57,7 +57,7 @@ void setup() {
   stopMotors();
   
   Serial.begin(9600);
-  Serial.println("Drizzle-Dome System Initialized - CORRECTED VERSION");
+  Serial.println("Drizzle-Dome System Initialized ");
   Serial.println("Clothesline in EXTENDED position");
   
   digitalWrite(statusLED, HIGH); // LED on = extended
